@@ -20,6 +20,17 @@ class _HomePageState extends State<HomePage> {
   bool _isServiceChargePercent = false;
   SplitMode _splitMode = SplitMode.equally;
   int _payerIndex = 0;
+  bool _serviceChargeEnabled = false;
+
+  // Validation state
+  String? _peopleCountError;
+  List<String?> _nameErrors = [];
+  List<String?> _spentErrors = [];
+  String? _serviceChargeError;
+  bool _formValid = false;
+
+  static const int maxPeople = 50;
+  static const double maxMoney = 1000000.0;
 
   @override
   void initState() {
@@ -32,28 +43,88 @@ class _HomePageState extends State<HomePage> {
     List<Person> newPeople = List.generate(count, (i) {
       return (i < _people.length)
           ? _people[i]
-          : Person(name: 'Person ${i + 1}');
+          : Person(name: '', spent: 0.0);
     });
     setState(() {
       _people = newPeople;
       if (_payerIndex >= count) {
         _payerIndex = 0;
       }
+      _validateAll();
     });
+  }
+
+  void _validateAll() {
+    // Validate people count
+    int count = int.tryParse(_numPeopleController.text) ?? 0;
+    if (count < 2) {
+      _peopleCountError = 'At least 2 people required';
+    } else if (count > maxPeople) {
+      _peopleCountError = 'Maximum $maxPeople people allowed';
+    } else {
+      _peopleCountError = null;
+    }
+
+    // Validate names (no error for empty, fallback used)
+    _nameErrors = List.filled(_people.length, null);
+    Set<String> seen = {};
+    for (int i = 0; i < _people.length; i++) {
+      String name = _people[i].name.trim();
+      String fallback = 'Person ${i + 1}';
+      String effectiveName = name.isEmpty ? fallback : name;
+      if (seen.contains(effectiveName)) {
+        _nameErrors[i] = 'Duplicate name';
+      } else {
+        seen.add(effectiveName);
+      }
+    }
+
+    // Validate spent
+    _spentErrors = List.filled(_people.length, null);
+    for (int i = 0; i < _people.length; i++) {
+      double spent = _people[i].spent;
+      if (spent < 0) {
+        _spentErrors[i] = 'Cannot be negative';
+      } else if (spent > maxMoney) {
+        _spentErrors[i] = 'Too high (max $maxMoney)';
+      }
+    }
+
+    // Validate service charge
+    double? serviceCharge = double.tryParse(_serviceChargeController.text);
+    if (!_serviceChargeEnabled) {
+      _serviceChargeError = null;
+    } else if (serviceCharge == null || serviceCharge < 0) {
+      _serviceChargeError = 'Must be non-negative';
+    } else if (serviceCharge > 100) {
+      _serviceChargeError = 'Too high (max 100%)';
+    } else {
+      _serviceChargeError = null;
+    }
+
+    // Form valid?
+    _formValid = _peopleCountError == null &&
+        _nameErrors.every((e) => e == null) &&
+        _spentErrors.every((e) => e == null) &&
+        _serviceChargeError == null;
   }
 
   void _calculate() {
     // Hide keyboard
     FocusScope.of(context).unfocus();
+    _validateAll();
+    if (!_formValid) {
+      setState(() {}); // To show errors
+      return;
+    }
 
     // Parse service charge
-    double serviceCharge = double.tryParse(_serviceChargeController.text) ?? 0.0;
+    double serviceCharge = _serviceChargeEnabled ? (double.tryParse(_serviceChargeController.text) ?? 0.0) : 0.0;
 
     // Apply service charge
     List<Person> peopleWithService = ExpenseLogic.applyServiceCharge(
       _people,
       serviceCharge,
-      _isServiceChargePercent,
     );
 
     // Calculate balances
@@ -68,7 +139,10 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ResultPage(people: finalPeople),
+        builder: (context) => ResultPage(
+          people: finalPeople,
+          splitEqually: _splitMode == SplitMode.equally,
+        ),
       ),
     );
   }
@@ -125,20 +199,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildPeopleCountInput() {
-    return TextField(
-      controller: _numPeopleController,
-      decoration: const InputDecoration(
-        labelText: 'Number of People',
-        border: OutlineInputBorder(),
-      ),
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      onChanged: (value) {
-        int? count = int.tryParse(value);
-        if (count != null && count > 0) {
-          _updatePeopleList(count);
-        }
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _numPeopleController,
+          decoration: InputDecoration(
+            labelText: 'Number of People',
+            border: const OutlineInputBorder(),
+            errorText: _peopleCountError,
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (value) {
+            int? count = int.tryParse(value);
+            if (count != null && count > 0) {
+              _updatePeopleList(count);
+            }
+          },
+        ),
+      ],
     );
   }
 
@@ -149,8 +229,17 @@ class _HomePageState extends State<HomePage> {
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: PersonInputTile(
             person: _people[i],
-            onNameChanged: (name) => _people[i].name = name,
-            onSpentChanged: (spent) => _people[i].spent = spent,
+            displayName: _people[i].name.isEmpty ? 'Person ${i + 1}' : _people[i].name,
+            onNameChanged: (name) => setState(() {
+              _people[i] = _people[i].copyWith(name: name);
+              _validateAll();
+            }),
+            onSpentChanged: (spent) => setState(() {
+              _people[i] = _people[i].copyWith(spent: spent);
+              _validateAll();
+            }),
+            nameError: _nameErrors.length > i ? _nameErrors[i] : null,
+            spentError: _spentErrors.length > i ? _spentErrors[i] : null,
           ),
         ),
     ];
@@ -158,32 +247,36 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildServiceChargeInput() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        Checkbox(
+          value: _serviceChargeEnabled,
+          onChanged: (checked) {
+            setState(() {
+              _serviceChargeEnabled = checked ?? false;
+              if (_serviceChargeEnabled) {
+                _serviceChargeController.text = '10';
+              } else {
+                _serviceChargeController.clear();
+              }
+              _validateAll();
+            });
+          },
+        ),
+        const Text('Apply Service Charge (%)'),
+        const SizedBox(width: 10),
         Expanded(
           child: TextField(
             controller: _serviceChargeController,
-            decoration: const InputDecoration(
-              labelText: 'Service Charge',
-              border: OutlineInputBorder(),
+            enabled: _serviceChargeEnabled,
+            decoration: InputDecoration(
+              labelText: 'Service Charge (%)',
+              border: const OutlineInputBorder(),
+              errorText: _serviceChargeError,
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(_validateAll),
           ),
-        ),
-        const SizedBox(width: 10),
-        ChoiceChip(
-          label: const Text('\$'),
-          selected: !_isServiceChargePercent,
-          onSelected: (selected) {
-            if (selected) setState(() => _isServiceChargePercent = false);
-          },
-        ),
-        const SizedBox(width: 5),
-        ChoiceChip(
-          label: const Text('%'),
-          selected: _isServiceChargePercent,
-          onSelected: (selected) {
-            if (selected) setState(() => _isServiceChargePercent = true);
-          },
         ),
       ],
     );

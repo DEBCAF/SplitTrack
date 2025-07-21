@@ -5,10 +5,10 @@ enum SplitMode { equally, onePays }
 typedef Repayment = Map<String, double>; // {from: amount}
 
 class ExpenseLogic {
-  static List<Person> applyServiceCharge(List<Person> people, double charge, bool isPercent) {
-    if (charge == 0) return people;
+  static List<Person> applyServiceCharge(List<Person> people, double percent) {
+    if (percent == 0) return people;
     double total = people.fold(0, (sum, p) => sum + p.spent);
-    double toAdd = isPercent ? total * (charge / 100) : charge;
+    double toAdd = total * (percent / 100);
     double perPerson = toAdd / people.length;
     return people
         .map((p) => p.copyWith(spent: p.spent + perPerson))
