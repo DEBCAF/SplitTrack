@@ -25,11 +25,6 @@ class SummaryCard extends StatelessWidget {
             if (splitEqually)
               Builder(
                 builder: (context) {
-                  double total = 0;
-                  for (var p in people) {
-                    total += p.spent;
-                  }
-                  double perPerson = people.isNotEmpty ? total / people.length : 0;
                   return Column(
                     children: [
                       Text(
@@ -37,19 +32,26 @@ class SummaryCard extends StatelessWidget {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      ...List.generate(people.length, (i) {
-                        final name = (people[i].name.isEmpty) ? 'Person ${i + 1}' : people[i].name;
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(name, style: const TextStyle(fontSize: 16)),
-                            Text(
-                              '\$${perPerson.toStringAsFixed(2)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                          ],
-                        );
-                      }),
+                      SizedBox(
+                        height: (people.length > 6) ? 200 : null,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: List.generate(people.length, (i) {
+                              final name = (people[i].name.isEmpty) ? 'Person ${i + 1}' : people[i].name;
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(name, style: const TextStyle(fontSize: 16)),
+                                  Text(
+                                    '\$${people[i].spent.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                ],
+                              );
+                            }),
+                          ),
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -61,27 +63,34 @@ class SummaryCard extends StatelessWidget {
                 style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
               )
             else
-              ...debts.map((debt) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${debt['from']} owes ${debt['to']}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      Text(
-                        '\$${debt['amount'].toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              SizedBox(
+                height: (debts.length > 6) ? 200 : null,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: debts.map((debt) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${debt['from']} owes ${debt['to']}',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            Text(
+                              '\$${debt['amount'].toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
-                );
-              }).toList(),
+                ),
+              ),
           ],
         ),
       ),
