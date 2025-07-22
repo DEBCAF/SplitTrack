@@ -177,15 +177,7 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildPeopleCountInput(),
-              const SizedBox(height: 20),
-              if (_splitMode == SplitMode.equally)
-                _buildTotalAmountInput()
-              else
-                ..._buildPersonTiles(),
-              const SizedBox(height: 20),
-              _buildServiceChargeInput(),
-              const SizedBox(height: 20),
+              // Move SplitModeSelector to the top
               SplitModeSelector(
                 splitMode: _splitMode,
                 onChanged: _onSplitModeChanged,
@@ -197,6 +189,15 @@ class _HomePageState extends State<HomePage> {
                   }
                 },
               ),
+              const SizedBox(height: 20),
+              _buildPeopleCountInput(),
+              const SizedBox(height: 20),
+              if (_splitMode == SplitMode.equally)
+                _buildTotalAmountInput()
+              else
+                ..._buildPersonTiles(),
+              const SizedBox(height: 20),
+              _buildServiceChargeInput(),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _calculate,
@@ -217,21 +218,32 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: _numPeopleController,
-          decoration: InputDecoration(
-            labelText: 'Number of People',
-            border: const OutlineInputBorder(),
-            errorText: _peopleCountError,
-          ),
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (value) {
-            int? count = int.tryParse(value);
-            if (count != null && count > 0) {
-              _updatePeopleList(count);
+        Focus(
+          onFocusChange: (hasFocus) {
+            if (hasFocus && _numPeopleController.text == '2') {
+              _numPeopleController.clear();
+            }
+            if (!hasFocus && _numPeopleController.text.isEmpty) {
+              _numPeopleController.text = '2';
+              _updatePeopleList(2);
             }
           },
+          child: TextField(
+            controller: _numPeopleController,
+            decoration: InputDecoration(
+              labelText: 'Number of People',
+              border: const OutlineInputBorder(),
+              errorText: _peopleCountError,
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (value) {
+              int? count = int.tryParse(value);
+              if (count != null && count > 0) {
+                _updatePeopleList(count);
+              }
+            },
+          ),
         ),
       ],
     );

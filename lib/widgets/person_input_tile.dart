@@ -82,6 +82,8 @@ class _PersonInputTileState extends State<PersonInputTile> {
               errorText: widget.nameError,
             ),
             onChanged: widget.onNameChanged,
+            maxLength: 20,
+            buildCounter: (context, {required int currentLength, required bool isFocused, required int? maxLength}) => null,
           ),
         ),
         const SizedBox(width: 10),
