@@ -21,6 +21,7 @@ class _HomePageState extends State<HomePage> {
   SplitMode _splitMode = SplitMode.equally;
   int _payerIndex = 0;
   bool _serviceChargeEnabled = false;
+  final _totalAmountController = TextEditingController();
 
   // Validation state
   String? _peopleCountError;
@@ -36,6 +37,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _updatePeopleList(2);
+    _totalAmountController.text = '0.0';
   }
 
   void _updatePeopleList(int count) {
@@ -109,33 +111,47 @@ class _HomePageState extends State<HomePage> {
         _serviceChargeError == null;
   }
 
+  void _onSplitModeChanged(SplitMode? mode) {
+    if (mode == null) return;
+    if (mode == SplitMode.equally && _splitMode != SplitMode.equally) {
+      // Switching to equally: sum per-person values
+      double total = _people.fold(0.0, (sum, p) => sum + p.spent);
+      _totalAmountController.text = total.toStringAsFixed(2);
+    }
+    setState(() {
+      _splitMode = mode;
+    });
+  }
+
   void _calculate() {
-    // Hide keyboard
     FocusScope.of(context).unfocus();
     _validateAll();
     if (!_formValid) {
-      setState(() {}); // To show errors
+      setState(() {});
       return;
     }
-
-    // Parse service charge
     double serviceCharge = _serviceChargeEnabled ? (double.tryParse(_serviceChargeController.text) ?? 0.0) : 0.0;
-
-    // Apply service charge
-    List<Person> peopleWithService = ExpenseLogic.applyServiceCharge(
-      _people,
-      serviceCharge,
-    );
-
-    // Calculate balances
+    List<Person> peopleWithService;
+    if (_splitMode == SplitMode.equally) {
+      // Distribute total equally
+      double total = double.tryParse(_totalAmountController.text) ?? 0.0;
+      int count = _people.length;
+      double perPerson = count > 0 ? total / count : 0.0;
+      peopleWithService = _people
+        .asMap()
+        .map((i, p) => MapEntry(i, p.copyWith(spent: perPerson)))
+        .values
+        .toList();
+      peopleWithService = ExpenseLogic.applyServiceCharge(peopleWithService, serviceCharge);
+    } else {
+      peopleWithService = ExpenseLogic.applyServiceCharge(_people, serviceCharge);
+    }
     List<Person> finalPeople;
     if (_splitMode == SplitMode.equally) {
       finalPeople = ExpenseLogic.splitEqually(peopleWithService);
     } else {
       finalPeople = ExpenseLogic.splitOnePays(peopleWithService, _payerIndex);
     }
-
-    // Navigate to results
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -163,17 +179,16 @@ class _HomePageState extends State<HomePage> {
             children: [
               _buildPeopleCountInput(),
               const SizedBox(height: 20),
-              ..._buildPersonTiles(),
+              if (_splitMode == SplitMode.equally)
+                _buildTotalAmountInput()
+              else
+                ..._buildPersonTiles(),
               const SizedBox(height: 20),
               _buildServiceChargeInput(),
               const SizedBox(height: 20),
               SplitModeSelector(
                 splitMode: _splitMode,
-                onChanged: (mode) {
-                  if (mode != null) {
-                    setState(() => _splitMode = mode);
-                  }
-                },
+                onChanged: _onSplitModeChanged,
                 payerIndex: _payerIndex,
                 people: _people,
                 onPayerChanged: (index) {
@@ -245,6 +260,29 @@ class _HomePageState extends State<HomePage> {
     ];
   }
 
+  Widget _buildTotalAmountInput() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Focus(
+          onFocusChange: (hasFocus) {
+            if (hasFocus && (_totalAmountController.text == '0.0' || _totalAmountController.text == '0.00')) {
+              _totalAmountController.clear();
+            }
+          },
+          child: TextField(
+            controller: _totalAmountController,
+            decoration: const InputDecoration(
+              labelText: 'Total Amount',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildServiceChargeInput() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -286,6 +324,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _numPeopleController.dispose();
     _serviceChargeController.dispose();
+    _totalAmountController.dispose();
     super.dispose();
   }
 }
