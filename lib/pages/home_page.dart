@@ -28,7 +28,10 @@ class _HomePageState extends State<HomePage> {
   List<String?> _nameErrors = [];
   List<String?> _spentErrors = [];
   String? _serviceChargeError;
+  String? _totalAmountError;
   bool _formValid = false;
+  bool _totalAmountTouched = false;
+  bool _calculateAttempted = false;
 
   static const int maxPeople = 50;
   static const double maxMoney = 1000000.0;
@@ -92,6 +95,22 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
+    // Validate total amount for split equally
+    if (_splitMode == SplitMode.equally) {
+      double? total = double.tryParse(_totalAmountController.text);
+      if (_totalAmountController.text.isEmpty) {
+        _totalAmountError = (_totalAmountTouched || _calculateAttempted) ? 'Enter a total amount' : null;
+      } else if (total == null || total < 0) {
+        _totalAmountError = (_totalAmountTouched || _calculateAttempted) ? 'Must be non-negative' : null;
+      } else if (total > maxMoney) {
+        _totalAmountError = (_totalAmountTouched || _calculateAttempted) ? 'Too high (max $maxMoney)' : null;
+      } else {
+        _totalAmountError = null;
+      }
+    } else {
+      _totalAmountError = null;
+    }
+
     // Validate service charge
     double? serviceCharge = double.tryParse(_serviceChargeController.text);
     if (!_serviceChargeEnabled) {
@@ -108,7 +127,8 @@ class _HomePageState extends State<HomePage> {
     _formValid = _peopleCountError == null &&
         _nameErrors.every((e) => e == null) &&
         _spentErrors.every((e) => e == null) &&
-        _serviceChargeError == null;
+        _serviceChargeError == null &&
+        _totalAmountError == null;
   }
 
   void _onSplitModeChanged(SplitMode? mode) {
@@ -124,6 +144,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _calculate() {
+    _calculateAttempted = true;
     FocusScope.of(context).unfocus();
     _validateAll();
     if (!_formValid) {
@@ -281,14 +302,29 @@ class _HomePageState extends State<HomePage> {
             if (hasFocus && (_totalAmountController.text == '0.0' || _totalAmountController.text == '0.00')) {
               _totalAmountController.clear();
             }
+            if (!hasFocus && _totalAmountController.text.isEmpty) {
+              _totalAmountController.text = '0.0';
+            }
+            if (!hasFocus) {
+              setState(() {
+                _totalAmountTouched = true;
+              });
+            }
           },
           child: TextField(
             controller: _totalAmountController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Total Amount',
               border: OutlineInputBorder(),
+              errorText: _totalAmountError,
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) {
+              setState(() {
+                _totalAmountTouched = true;
+                _validateAll();
+              });
+            },
           ),
         ),
       ],
